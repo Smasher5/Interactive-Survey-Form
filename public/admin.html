@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Survey Admin Panel</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{ --bg:#0f1724; --card:#0b1220; --muted:#94a3b8; --text:#e6eef8; --accent:#60a5fa }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{ font-family:Inter,system-ui,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--text); min-height:100vh; padding:28px }
+    .wrap{ max-width:1100px; margin:0 auto }
+    .card{ background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent); border-radius:12px; padding:18px; border:1px solid rgba(255,255,255,0.04) }
+    h1{ font-size:1.6rem; margin-bottom:12px }
+    .grid{ display:grid; grid-template-columns:1fr 380px; gap:18px; margin-bottom:18px }
+    .chart-box{ padding:12px; background:transparent; border-radius:10px }
+    table{ width:100%; border-collapse:collapse; font-size:.92rem; margin-top:12px }
+    th, td{ padding:10px 8px; border-bottom:1px solid rgba(255,255,255,0.03); text-align:left; color:var(--text) }
+    thead th{ color:var(--muted); font-size:.86rem; font-weight:600 }
+    .small{ font-size:.85rem; color:var(--muted) }
+    @media (max-width:900px){ .grid{ grid-template-columns:1fr; } .chart-box{ margin-bottom:12px } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>📊 Survey Admin Panel</h1>
+      <p class="small">Visual overview of collected responses. Data taken from <code>/api/survey</code>.</p>
+
+      <div class="grid" style="margin-top:14px;">
+        <div class="card">
+          <div class="chart-box">
+            <h3 style="margin-bottom:8px">Average Scores</h3>
+            <canvas id="barChart" height="160"></canvas>
+          </div>
+          <div class="chart-box" style="margin-top:12px">
+            <h3 style="margin-bottom:8px">Trend (Recent submissions)</h3>
+            <canvas id="lineChart" height="120"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="chart-box">
+            <h3 style="margin-bottom:8px">Priority Distribution</h3>
+            <canvas id="pieChart" height="240"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px; padding:12px">
+        <h3 style="margin-bottom:8px">All Responses</h3>
+        <div style="overflow:auto; max-height:420px;">
+          <table>
+            <thead>
+              <tr><th>Date</th><th>Satisfaction</th><th>Recommendation</th><th>Priority</th><th>Feature Priority</th><th>Feedback</th></tr>
+            </thead>
+            <tbody id="resultsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function loadResults(){
+      try {
+        const res = await fetch('/api/survey');
+        const data = await res.json();
+        renderTable(data);
+        renderCharts(data);
+      } catch(err){
+        console.error('Failed to load survey data:', err);
+        document.getElementById('resultsTable').innerHTML = '<tr><td colspan="6" class="small">Could not load data</td></tr>';
+      }
+    }
+
+    function renderTable(data){
+      const tbody = document.getElementById('resultsTable');
+      tbody.innerHTML = '';
+      if(!Array.isArray(data) || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="small">No responses yet</td></tr>';
+        return;
+      }
+      data.slice().reverse().forEach(item => {
+        const date = new Date(item.createdAt || item._id?.getTimestamp?.() || Date.now()).toLocaleString();
+        const feat = (item.featurePriority && item.featurePriority.length) ? item.featurePriority.join(', ') : '-';
+        const fb = item.feedback ? escapeHtml(item.feedback) : '-';
+        const row = `<tr>
+          <td>${date}</td>
+          <td>${item.satisfaction ?? '-'}</td>
+          <td>${item.recommendation ?? '-'}</td>
+          <td>${item.priority ?? '-'}</td>
+          <td>${feat}</td>
+          <td>${fb}</td>
+        </tr>`;
+        tbody.innerHTML += row;
+      });
+    }
+
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    function renderCharts(data){
+      // guard
+      if(!Array.isArray(data)) data = [];
+
+      // avg scores
+      const validCount = data.length || 1;
+      const avgSatisfaction = (data.reduce((acc, r)=> acc + (Number(r.satisfaction) || 0), 0) / validCount).toFixed(2);
+      const avgRecommendation = (data.reduce((acc, r)=> acc + (Number(r.recommendation) || 0), 0) / validCount).toFixed(2);
+
+      // bar
+      const barCtx = document.getElementById('barChart').getContext('2d');
+      if(window._barChart) window._barChart.destroy();
+      window._barChart = new Chart(barCtx, {
+        type: 'bar',
+        data: { labels:['Satisfaction','Recommendation'], datasets:[{ label:'Average', data:[avgSatisfaction, avgRecommendation], backgroundColor:['#60a5fa','#34d399'] }] },
+        options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, suggestedMax:10 } } }
+      });
+
+      // priority counts
+      const counts = {};
+      data.forEach(r => { if(r.priority) counts[r.priority] = (counts[r.priority]||0)+1; });
+      const labels = Object.keys(counts);
+      const values = Object.values(counts);
+
+      const pieCtx = document.getElementById('pieChart').getContext('2d');
+      if(window._pieChart) window._pieChart.destroy();
+      window._pieChart = new Chart(pieCtx, {
+        type: 'pie',
+        data: { labels, datasets:[{ data: values, backgroundColor:['#f87171','#facc15','#34d399','#60a5fa','#a78bfa'] }] },
+        options:{ responsive:true }
+      });
+
+      // line chart: recent satisfaction trend
+      const recent = data.slice(-12);
+      const lineLabels = recent.map((r,i)=> (new Date(r.createdAt || Date.now())).toLocaleString());
+      const lineData = recent.map(r => Number(r.satisfaction) || 0);
+      const lineCtx = document.getElementById('lineChart').getContext('2d');
+      if(window._lineChart) window._lineChart.destroy();
+      window._lineChart = new Chart(lineCtx, {
+        type:'line',
+        data:{ labels: lineLabels, datasets:[{ label:'Satisfaction', data: lineData, fill:true, tension:0.3, backgroundColor:'rgba(96,165,250,0.12)', borderColor:'#60a5fa' }] },
+        options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, suggestedMax:5 } } }
+      });
+    }
+
+    loadResults();
+    // for auto refresh every minute (optional)
+    // setInterval(loadResults, 60000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Interactive Survey Form</title>
+  <style>
+    :root{
+      --c-primary:#14b8a6; --c-primary-light:rgba(20,184,166,0.08);
+      --c-text-primary:#f9fafb; --c-text-secondary:#9ca3af;
+      --c-border:#374151; --c-surface:#1f2937; --c-background:#111827;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:-apple-system,system-ui,"Segoe UI",Roboto,Arial,sans-serif;
+      background:var(--c-background); min-height:100vh; display:flex;
+      align-items:center;justify-content:center;padding:20px;color:var(--c-text-primary);
+    }
+    .survey-container{
+      width:100%;max-width:700px;border-radius:16px;
+      background:linear-gradient(180deg,var(--c-surface),#111827);
+      border:1px solid var(--c-border); overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,0.6);
+    }
+
+    .progress-container{ padding:16px 36px 0; background:transparent }
+    .progress-bar-track{ background:rgba(255,255,255,0.03); height:6px; border-radius:3px }
+    .progress-bar{ height:100%; background:var(--c-primary); width:0%; transition:width .6s }
+
+    .survey-header{ padding:28px 36px; text-align:center; background:transparent }
+    .survey-title{ font-size:1.9rem; font-weight:700; color:var(--c-text-primary); margin-bottom:6px }
+    .survey-subtitle{ color:var(--c-text-secondary); font-size:0.98rem }
+
+    .question-container{ padding:36px; min-height:360px; background:transparent }
+    .question{ display:none; animation:fadeIn .45s ease-out }
+    .question.active{ display:block }
+    .question h3{ font-size:1.5rem; color:var(--c-text-primary); text-align:center; margin-bottom:22px }
+
+    .emoji-rating{ display:flex; gap:14px; justify-content:center; margin:18px 0 }
+    .emoji-option{ font-size:2.6rem; padding:6px; border-radius:50%; cursor:pointer; transition:transform .14s }
+    .emoji-option:hover{ transform:scale(1.18) }
+    .emoji-option.selected{ transform:scale(1.18); box-shadow:0 0 0 6px var(--c-primary); background:var(--c-primary-light) }
+
+    .slider-container{ margin:18px 0 }
+    .slider-labels{ display:flex; justify-content:space-between; color:var(--c-text-secondary); font-size:.92rem }
+    .slider{ width:100%; height:6px; background:var(--c-border); border-radius:4px; -webkit-appearance:none; appearance:none }
+    .slider::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:20px; height:20px; border-radius:50%; background:var(--c-primary); cursor:pointer; transition:transform .12s }
+    .slider::-webkit-slider-thumb:hover{ transform:scale(1.06) }
+    .slider-value{ text-align:center; margin-top:12px; color:var(--c-primary); font-weight:700 }
+
+    .choice-container{ display:flex; flex-direction:column; gap:12px; margin:18px 0 }
+    .choice-option{ padding:14px 16px; border-radius:10px; border:1px solid var(--c-border); cursor:pointer; color:var(--c-text-primary) }
+    .choice-option:hover{ border-color:var(--c-primary); background:var(--c-primary-light) }
+    .choice-option.selected{ border-color:var(--c-primary); background:var(--c-primary-light); font-weight:700 }
+
+    .drag-items{ display:flex; flex-wrap:wrap; gap:10px; padding:14px; background:var(--c-background); border-radius:10px; margin-bottom:12px }
+    .drag-item{ padding:8px 14px; border-radius:20px; border:1px solid var(--c-border); cursor:grab; background:var(--c-surface) }
+    .drag-item.dragging{ opacity:.5 }
+    .drop-zone{ min-height:100px; border:2px dashed var(--c-border); border-radius:10px; padding:16px; text-align:center; color:var(--c-text-secondary) }
+    .drop-zone.drag-over{ border-color:var(--c-primary); background:var(--c-primary-light) }
+    .dropped-items{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:8px }
+    .dropped-items .drag-item{ background:var(--c-primary); color:#fff; border-color:var(--c-primary) }
+
+    textarea{ width:100%; min-height:120px; padding:14px; border-radius:10px; border:2px solid var(--c-border); background:var(--c-surface); color:var(--c-text-primary); resize:vertical; font-size:1rem }
+
+    .navigation{ padding:18px 36px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--c-border) }
+    .nav-btn{ padding:10px 22px; border-radius:10px; font-weight:700; cursor:pointer; border:none }
+    #prevBtn{ background:transparent; color:var(--c-text-secondary); border:1px solid var(--c-border) }
+    #nextBtn{ background:var(--c-primary); color:var(--c-surface) }
+    .nav-btn:disabled{ opacity:.5; cursor:not-allowed }
+
+    .results{ text-align:center; padding:18px 0 }
+    .results-summary{ margin:14px auto 22px; max-width:680px; background:rgba(255,255,255,0.02); padding:14px 18px; border-radius:10px; text-align:left }
+    .result-item{ display:flex; justify-content:space-between; padding:10px 6px; border-bottom:1px solid rgba(255,255,255,0.03) }
+    .result-item:last-child{ border-bottom:none }
+    .result-item strong{ color:var(--c-text-primary) }
+
+    .admin-link{ display:inline-block; margin-top:12px; text-decoration:none; padding:10px 16px; border-radius:10px; background:var(--c-text-primary); color:var(--c-background); font-weight:700 }
+
+    @keyframes fadeIn{ from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none} }
+    @media (max-width:640px){ .question-container{ padding:22px } .survey-header{ padding:18px } .navigation{ padding:14px } }
+  </style>
+</head>
+<body>
+  <div class="survey-container" role="form" aria-labelledby="surveyTitle">
+    <div class="progress-container">
+      <div class="progress-bar-track"><div class="progress-bar" id="progressBar"></div></div>
+    </div>
+
+    <header class="survey-header">
+      <h1 id="surveyTitle" class="survey-title">Experience Survey</h1>
+      <p class="survey-subtitle">Help us improve with your feedback</p>
+    </header>
+
+    <main class="question-container" id="questionContainer">
+      <!-- Q1 -->
+      <section class="question active" data-question="1" aria-hidden="false">
+        <h3>How satisfied are you with our service?</h3>
+        <div class="emoji-rating" role="radiogroup" aria-label="Satisfaction rating">
+          <div class="emoji-option" role="radio" tabindex="0" aria-checked="false" data-value="1" aria-label="Very unsatisfied">😞</div>
+          <div class="emoji-option" role="radio" tabindex="0" aria-checked="false" data-value="2" aria-label="Unsatisfied">😐</div>
+          <div class="emoji-option" role="radio" tabindex="0" aria-checked="false" data-value="3" aria-label="Neutral">🙂</div>
+          <div class="emoji-option" role="radio" tabindex="0" aria-checked="false" data-value="4" aria-label="Satisfied">😊</div>
+          <div class="emoji-option" role="radio" tabindex="0" aria-checked="false" data-value="5" aria-label="Very satisfied">🤩</div>
+        </div>
+      </section>
+
+      <!-- Q2 -->
+      <section class="question" data-question="2" aria-hidden="true">
+        <h3>How likely are you to recommend us?</h3>
+        <div class="slider-container">
+          <div class="slider-labels"><span>Not likely</span><span>Very likely</span></div>
+          <input id="recommendSlider" class="slider" type="range" min="0" max="10" value="5" aria-label="Recommendation slider">
+          <div id="sliderValue" class="slider-value">5/10</div>
+        </div>
+      </section>
+
+      <!-- Q3 -->
+      <section class="question" data-question="3" aria-hidden="true">
+        <h3>What's most important to you?</h3>
+        <div class="choice-container" role="list">
+          <div class="choice-option" role="listitem" tabindex="0" data-value="quality">🏆 Quality of service</div>
+          <div class="choice-option" role="listitem" tabindex="0" data-value="price">💰 Competitive pricing</div>
+          <div class="choice-option" role="listitem" tabindex="0" data-value="speed">⚡ Fast delivery</div>
+          <div class="choice-option" role="listitem" tabindex="0" data-value="support">🤝 Customer support</div>
+        </div>
+      </section>
+
+      <!-- Q4 -->
+      <section class="question" data-question="4" aria-hidden="true">
+        <h3>Rank these features by priority</h3>
+        <div class="drag-drop-container">
+          <div class="drag-items" id="dragItems" aria-label="Draggable features">
+            <div class="drag-item" draggable="true" data-value="mobile">📱 Mobile App</div>
+            <div class="drag-item" draggable="true" data-value="analytics">📊 Analytics</div>
+            <div class="drag-item" draggable="true" data-value="integration">🔗 Integrations</div>
+            <div class="drag-item" draggable="true" data-value="security">🔒 Security</div>
+            <div class="drag-item" draggable="true" data-value="customization">🎨 Customization</div>
+          </div>
+          <div class="drop-zone" id="dropZone" aria-label="Drop zone">
+            <p>Drop items here in order of priority</p>
+            <div class="dropped-items" id="droppedItems" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Q5 -->
+      <section class="question" data-question="5" aria-hidden="true">
+        <h3>Any additional feedback?</h3>
+        <textarea id="feedbackText" placeholder="Share your thoughts..." aria-label="Feedback"></textarea>
+      </section>
+
+      <!-- Results -->
+      <section class="question" data-question="results" aria-hidden="true">
+        <div class="results">
+          <h2>🎉 Thank you!</h2>
+          <p class="survey-subtitle" style="margin-bottom:14px">Your feedback has been submitted.</p>
+          <div id="resultsSummary" class="results-summary" aria-live="polite"></div>
+
+          <div id="afterSaveActions" style="margin-top:12px">
+            <!-- Admin link will be inserted here after save -->
+          </div>
+
+          <div style="margin-top:14px">
+            <button class="nav-btn" id="restartBtn" onclick="restartSurvey()">Take Survey Again</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="navigation" aria-hidden="false">
+      <button class="nav-btn" id="prevBtn" onclick="previousQuestion()" disabled>Previous</button>
+      <button class="nav-btn" id="nextBtn" onclick="nextQuestion()">Next</button>
+    </footer>
+  </div>
+
+  <script>
+    // State
+    let currentQuestion = 1;
+    const totalQuestions = 5;
+    const answers = {};
+
+    // init
+    document.addEventListener('DOMContentLoaded', () => {
+      updateProgress();
+      setupEventListeners();
+      updateButtons();
+    });
+
+    function setupEventListeners(){
+      // Emoji rating (click & keyboard)
+      document.querySelectorAll('.emoji-option').forEach(el=>{
+        el.addEventListener('click', ()=> selectEmoji(el) );
+        el.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectEmoji(el); }});
+      });
+
+      function selectEmoji(el){
+        document.querySelectorAll('.emoji-option').forEach(e=>{ e.classList.remove('selected'); e.setAttribute('aria-checked','false')});
+        el.classList.add('selected'); el.setAttribute('aria-checked','true');
+        answers.satisfaction = el.dataset.value;
+      }
+
+      // Slider
+      const slider = document.getElementById('recommendSlider');
+      const sliderValue = document.getElementById('sliderValue');
+      slider.addEventListener('input', function(){
+        sliderValue.textContent = this.value + '/10';
+        answers.recommendation = Number(this.value);
+      });
+
+      // Choices (click & keyboard)
+      document.querySelectorAll('.choice-option').forEach(el=>{
+        el.addEventListener('click', ()=> selectChoice(el));
+        el.addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' ') { e.preventDefault(); selectChoice(el); }});
+      });
+      function selectChoice(el){
+        document.querySelectorAll('.choice-option').forEach(c=> c.classList.remove('selected'));
+        el.classList.add('selected'); answers.priority = el.dataset.value;
+      }
+
+      // Drag & Drop
+      setupDragAndDrop();
+
+      // Feedback
+      const textarea = document.getElementById('feedbackText');
+      textarea.addEventListener('input', ()=> answers.feedback = textarea.value);
+      textarea.addEventListener('focus', ()=> textarea.style.borderColor = 'var(--c-primary)');
+      textarea.addEventListener('blur', ()=> textarea.style.borderColor = 'var(--c-border)');
+    }
+
+    function setupDragAndDrop(){
+      const dragItems = document.querySelectorAll('.drag-item');
+      const dropZone = document.getElementById('dropZone');
+      const droppedItems = document.getElementById('droppedItems');
+
+      dragItems.forEach(item=>{
+        item.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', item.dataset.value); setTimeout(()=> item.classList.add('dragging'), 0); });
+        item.addEventListener('dragend', ()=> item.classList.remove('dragging'));
+        // keyboard support: allow pressing Enter to "add" to dropped zone
+        item.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            addDragged(item.dataset.value);
+          }
+        });
+      });
+
+      dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+      dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag-over'));
+      dropZone.addEventListener('drop', e=>{
+        e.preventDefault(); dropZone.classList.remove('drag-over');
+        const value = e.dataTransfer.getData('text/plain'); addDragged(value);
+      });
+
+      function addDragged(value){
+        const original = document.querySelector(`.drag-item[data-value="${value}"]`);
+        const dropped = document.querySelector(`#droppedItems [data-value="${value}"]`);
+        if (!original || dropped) return;
+        const clone = original.cloneNode(true);
+        clone.draggable = false;
+        droppedItems.appendChild(clone);
+        original.style.opacity = '0.35'; original.style.pointerEvents = 'none';
+        if (droppedItems.children.length > 0) {
+          const p = dropZone.querySelector('p'); if (p) p.style.display = 'none';
+        }
+        answers.featurePriority = Array.from(droppedItems.children).map(n => n.dataset.value);
+      }
+    }
+
+    // Navigation
+    function switchQuestion(oldIdx, newIdx){
+      const oldQ = document.querySelector(`.question[data-question="${oldIdx}"]`);
+      const newQ = document.querySelector(`.question[data-question="${newIdx}"]`);
+      if (oldQ) { oldQ.classList.remove('active'); oldQ.setAttribute('aria-hidden','true') }
+      if (newQ) { setTimeout(()=>{ newQ.classList.add('active'); newQ.setAttribute('aria-hidden','false') }, 60) }
+    }
+
+    function nextQuestion(){
+      if (currentQuestion < totalQuestions) {
+        switchQuestion(currentQuestion, ++currentQuestion);
+        updateProgress(); updateButtons();
+      } else {
+        submitAndShowResults();
+      }
+    }
+    function previousQuestion(){
+      if (currentQuestion > 1) {
+        switchQuestion(currentQuestion, --currentQuestion);
+        updateProgress(); updateButtons();
+      }
+    }
+
+    function updateProgress(){
+      // progress based on zero-indexed user flow (1..5)
+      const progress = ((currentQuestion - 1) / (totalQuestions - 1)) * 100;
+      document.getElementById('progressBar').style.width = progress + '%';
+    }
+    function updateButtons(){
+      document.getElementById('prevBtn').disabled = currentQuestion === 1;
+      document.getElementById('nextBtn').textContent = (currentQuestion === totalQuestions) ? 'Submit' : 'Next';
+    }
+
+    // Submit to backend then show results
+    async function submitAndShowResults(){
+      // show results UI immediately
+      switchQuestion(currentQuestion, 'results');
+      document.querySelector('.navigation').style.display = 'none';
+      document.getElementById('progressBar').style.width = '100%';
+      populateResults();
+
+      // send to backend; show admin button only after success
+      try {
+        const res = await fetch('/api/survey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(answers)
+        });
+        const data = await res.json();
+        if(res.ok){
+          showAdminLink();
+          console.log('Saved:', data);
+        } else {
+          console.error('Save failed:', data);
+          showAdminLink(true); // show anyway but mark issue (optional)
+        }
+      } catch(err){
+        console.error('Network error saving survey:', err);
+        showAdminLink(true);
+      }
+    }
+
+    function populateResults(){
+      const resultsSummary = document.getElementById('resultsSummary');
+      const map = {
+        satisfaction: { label:'Satisfaction', values:{'1':'😞','2':'😐','3':'🙂','4':'😊','5':'🤩'} },
+        recommendation: { label:'Recommendation', format: v => `${v}/10` },
+        priority: { label:'Most Important', values:{ 'quality':'🏆 Quality','price':'💰 Pricing','speed':'⚡ Speed','support':'🤝 Support'} },
+        featurePriority: { label:'Feature Priority', values:{ 'mobile':'📱 Mobile App','analytics':'📊 Analytics','integration':'🔗 Integrations','security':'🔒 Security','customization':'🎨 Customization'} },
+        feedback: { label:'Feedback' }
+      };
+
+      let html = '';
+      for(const key in answers){
+        if(!answers[key] && answers[key] !== 0) continue;
+        const meta = map[key] || { label:key };
+        let value = answers[key];
+        if(meta.values){
+          if(Array.isArray(value)) value = value.map(v=> meta.values[v] || v).join(', ');
+          else value = meta.values[value] || value;
+        } else if(meta.format) value = meta.format(value);
+        html += `<div class="result-item"><strong>${meta.label}:</strong> <span>${value}</span></div>`;
+      }
+      resultsSummary.innerHTML = html || '<div class="result-item"><strong>No responses recorded</strong></div>';
+    }
+
+    function showAdminLink(withWarning = false){
+      const container = document.getElementById('afterSaveActions');
+      const link = document.createElement('a');
+      link.href = 'admin.html';
+      link.className = 'admin-link';
+      link.textContent = 'Go to Admin Page';
+      container.appendChild(link);
+
+      if(withWarning){
+        const note = document.createElement('div');
+        note.style.color = '#f59e0b'; note.style.marginTop = '8px'; note.style.fontSize = '.92rem';
+        note.textContent = 'There was a problem saving — you can still view admin to confirm.';
+        container.appendChild(note);
+      }
+    }
+
+    // Reset
+    function restartSurvey(){
+      currentQuestion = 1;
+      Object.keys(answers).forEach(k=>delete answers[k]);
+      document.querySelectorAll('.question').forEach(q=> q.classList.remove('active'));
+      document.querySelector('.question[data-question="1"]').classList.add('active');
+      document.querySelectorAll('.selected').forEach(s => s.classList.remove('selected'));
+      document.getElementById('recommendSlider').value = 5;
+      document.getElementById('sliderValue').textContent = '5/10';
+      document.getElementById('feedbackText').value = '';
+      document.querySelectorAll('.drag-item').forEach(item => { item.style.opacity='1'; item.style.pointerEvents='auto' });
+      document.getElementById('droppedItems').innerHTML = '';
+      const p = document.querySelector('#dropZone p'); if(p) p.style.display = 'block';
+      document.querySelector('.navigation').style.display = 'flex';
+      const after = document.getElementById('afterSaveActions'); if(after) after.innerHTML = '';
+      updateProgress(); updateButtons();
+    }
+  </script>
+</body>
+</html>
